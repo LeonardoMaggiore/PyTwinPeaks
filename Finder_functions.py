@@ -1941,35 +1941,52 @@ def load_n_profiles(pre_path, cosmoc, n):
         profile_path = os.path.join(folderin, l_c, "map_shear_profiles")
         
         if not os.path.exists(profile_path):
-            print(f"❌ File non trovato: {profile_path}")
+            print(f"File non trovato: {profile_path}")
             continue
 
         if os.path.isfile(profile_path):
-            #print(f"📂 Leggendo: {profile_path}")
+            #print(f"Leggendo: {profile_path}")
             try:
                 data = np.genfromtxt(profile_path, dtype=float)  # Legge il file
                 
                 if data.ndim == 1:  # Caso in cui il file ha solo 1 riga (reshape per coerenza)
                     data = data.reshape(1, -1)
 
-                if data.shape[1] == 64:  # ✅ Controlla che ogni riga abbia esattamente 64 valori
+                if data.shape[1] == 64:  # Controlla che ogni riga abbia esattamente 64 valori
                     profiles_list.append(data)
                 else:
-                    print(f"⚠️ ERRORE: {profile_path} ha {data.shape[1]} colonne invece di 64!")
+                    print(f"ERRORE: {profile_path} ha {data.shape[1]} colonne invece di 64!")
             
             except Exception as e:
-                print(f"⚠️ ERRORE nella lettura di {profile_path}: {e}")
+                print(f"ERRORE nella lettura di {profile_path}: {e}")
     
     if profiles_list:
         profiles__ = np.vstack(profiles_list)  # Concatena tutte le righe in un unico array
-        print(f"✅ Caricati {profiles__.shape[0]} righe con {profiles__.shape[1]} colonne ciascuna.")
+        print(f"Caricati {profiles__.shape[0]} righe con {profiles__.shape[1]} colonne ciascuna.")
     else:
-        print("❌ Nessun dato valido trovato.")
+        print("Nessun dato valido trovato.")
         profiles__ = np.array([])
 
     return profiles__
         
-def calculate_covariance_matrix(profiles, plot=True):
+def create_custom_diverging_colormap():
+    from matplotlib.colors import LinearSegmentedColormap
+    # Custom diverging colormap from blue to white to deep red
+    colors = [
+        (0.0, "lightblue"),         # -0.2e-5
+        (0.2, "white"),
+        (0.4, "lightcoral"),      # 0.0 (centro visivo)
+        (0.6, "indianred"),
+        (0.8, "firebrick"),
+        (1.0, "darkred")       # 1.0e-5
+    ]
+    return LinearSegmentedColormap.from_list("custom_div_cmap", colors)
+        
+def calculate_covariance_matrix(profiles, plot=False):
+    from matplotlib.colors import LinearSegmentedColormap, Normalize, TwoSlopeNorm
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from matplotlib.ticker import MultipleLocator
+
     covariance_matrix = np.cov(profiles, rowvar=False)
     # Extract the diagonal values
     diagonal_values = np.diag(covariance_matrix)
@@ -1989,26 +2006,35 @@ def calculate_covariance_matrix(profiles, plot=True):
     #corr_mat = np.nan_to_num(corr_mat, nan=0.0, posinf=0.0, neginf=0.0)
     
     if plot == True:
-    
-        #Plot Covariance matrix
-        fig, ax = plt.subplots(1,1, figsize=(12,12))
+        
+        vmin, vmax = -0.2e-5, 0.9e-5
+        # Define custom normalization so that 0.0 falls exactly in the middle color (white)
+        norm = Normalize(vmin=vmin, vmax=vmax)
 
-        im = plt.imshow(covariance_matrix, origin='upper')
+        fig, ax = plt.subplots(figsize=(12, 12))
+        cmap = create_custom_diverging_colormap()
+        im = ax.imshow(covariance_matrix, origin='upper', cmap=cmap, norm=norm)
 
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.15)
 
-        cbar = plt.colorbar(im, cax=cax)
-        cbar.ax.tick_params(labelsize=15) 
-
+        ticks = np.arange(-0.2e-5, 1e-5, 0.2e-5)
+        cbar = plt.colorbar(im, cax=cax, ticks=ticks)
+        cbar.ax.tick_params(labelsize=25)
+        cbar.ax.yaxis.offsetText.set_fontsize(20)
+        cbar.ax.yaxis.offsetText.set_x(1.65)
         cbar.ax.get_yaxis().labelpad = 20
-        cbar.ax.set_ylabel('Covariance', size=22, rotation=270)
+        cbar.ax.set_ylabel('Covariance', size=30, rotation=270)
 
-        ax.get_xaxis().set_tick_params(which='both', direction='in', labelsize=15)  
-        ax.get_yaxis().set_tick_params(which='both', direction='in', labelsize=15)
+        ax.tick_params(which='both', direction='in', labelsize=25)
+        #ax.get_xaxis().set_tick_params(which='both', direction='in', labelsize=25)
+        #ax.get_yaxis().set_tick_params(which='both', direction='in', labelsize=25)
+        plt.tight_layout()
+        plt.savefig("/home/leonardo/Desktop/pdfs2/cov_mat_all_LCDM.pdf", format='pdf', bbox_inches='tight')
+        plt.show()
 
+        
         #Plot Correlation factor matrix
-
         fig, ax = plt.subplots(1,1, figsize=(12,12))
 
         im = plt.imshow(corr_mat, origin='upper')
@@ -2027,6 +2053,55 @@ def calculate_covariance_matrix(profiles, plot=True):
 
     return covariance_matrix, diagonal_values, sqrt_diagonal_values, corr_mat
 
+def ensure_positive_definite(matrix, eps_tolerance=1e-10, enforce_eps=1e-8, verbose=True):
+    """
+    Rende positiva definita una matrice simmetrica con boost dinamico in caso di autovalori negativi residui.
+
+    Parametri:
+        matrix (np.ndarray): matrice simmetrica NxN
+        eps_tolerance (float): soglia per considerare un autovalore nullo/negativo numericamente
+        enforce_eps (float): soglia minima per forzare autovalori molto piccoli o negativi
+        verbose (bool): se True, stampa diagnostica
+
+    Ritorna:
+        corrected_matrix (np.ndarray): matrice positiva definita
+        float: autovalore minimo finale
+    """
+    matrix = np.array(matrix, dtype=np.float64, copy=True)
+    eigvals, eigvecs = np.linalg.eigh(matrix)
+    min_eig = np.min(eigvals)
+
+    if min_eig > -eps_tolerance:
+        if verbose:
+            print("La matrice è già definita positiva (entro tolleranza numerica).")
+        return matrix, min_eig
+
+    if verbose:
+        print(f"Autovalore minimo negativo: {min_eig:.2e}. Correzione necessaria.")
+
+    # Correzione iniziale autovalori
+    corrected_eigvals = np.clip(eigvals, enforce_eps, None)
+    corrected_matrix = eigvecs @ np.diag(corrected_eigvals) @ eigvecs.T
+
+    final_min = np.min(np.linalg.eigvalsh(corrected_matrix))
+    if final_min < -eps_tolerance:
+        if verbose:
+            print(f"Dopo correzione, autovalore minimo ancora negativo: {final_min:.2e}. Applico boost dinamico.")
+        # Boost più forte e adattivo
+        boost = abs(final_min) * 10 + enforce_eps
+        corrected_matrix += boost * np.eye(matrix.shape[0])
+        final_min = np.min(np.linalg.eigvalsh(corrected_matrix))
+
+        if final_min > 0:
+            if verbose:
+                print(f"Boost applicato: +{boost:.2e} → nuovo min λ = {final_min:.2e}")
+        else:
+            if verbose:
+                print(f"Boost applicato: +{boost:.2e}, ma la matrice NON è ancora definita positiva. Min λ = {final_min:.2e}")
+
+    return corrected_matrix
+
+
 def calculate_stat_error(profiles__, nbins, n, plot_cov=False):
     import Finder_functions as mystery
     
@@ -2037,19 +2112,73 @@ def calculate_stat_error(profiles__, nbins, n, plot_cov=False):
     # Calcola il numero totale di profili
     num_profiles = profiles__.shape[0]
 
+    covariance_matrix, diagonal_values, sqrt_diagonal_values, corr_mat = mystery.calculate_covariance_matrix(profiles__)
+    # --- Pulizia iniziale ---
+    covariance_matrix = np.nan_to_num(covariance_matrix, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # --- Filtro sulla correlazione ---
+    correlation_threshold = 0.2
+    for i in range(nbins):
+        for j in range(nbins):
+            if i != j and abs(corr_mat[i, j]) < correlation_threshold:
+                covariance_matrix[i, j] = 0.0
+
+    # --- Regolarizzazione per stabilità numerica ---
+    reg_epsilon = 1e-5 * np.mean(np.diag(covariance_matrix))
+    covariance_matrix += reg_epsilon * np.eye(nbins)
+
+    # --- Forza positività definita sulla matrice di covarianza ---
+    eigvals, eigvecs = np.linalg.eigh(covariance_matrix)
+    eigvals_clipped = np.clip(eigvals, a_min=1e-10, a_max=None)
+    covariance_matrix = eigvecs @ np.diag(eigvals_clipped) @ eigvecs.T
+
+    # --- Calcolo errore finale (opzionale) ---
+    final_cov_error = sqrt_diagonal_values / np.sqrt(num_profiles)
+
+    # --- Inversione della matrice ---
+    inverse_cov_mat = np.linalg.inv(covariance_matrix)
+
+    # --- Correzione con fattore di Hartlap ---
+    hartlap_factor = (num_profiles - nbins - 2) / (num_profiles - 1)
+    if hartlap_factor > 0:
+        inverse_cov_mat_hartlap = inverse_cov_mat * hartlap_factor
+    else:
+        print("Hartlap factor negativo o nullo. Usiamo la matrice non corretta.")
+        inverse_cov_mat_hartlap = inverse_cov_mat.copy()
+
+    # --- Pulizia post-inversione ---
+    inverse_cov_mat_hartlap = np.nan_to_num(inverse_cov_mat_hartlap, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # --- Filtro outlier numerici (> 3σ off-diagonali) ---
+    off_diag_values = inverse_cov_mat_hartlap[~np.eye(nbins, dtype=bool)]
+    std_off = np.std(off_diag_values)
+
+    for i in range(nbins):
+        for j in range(nbins):
+            if i != j and abs(inverse_cov_mat_hartlap[i, j]) > 3 * std_off:
+                inverse_cov_mat_hartlap[i, j] = 0.0
+
+    # --- Forza definita positività della matrice finale ---
+    inverse_cov_mat_hartlap = mystery.ensure_positive_definite(inverse_cov_mat_hartlap, eps_tolerance=1e-10, enforce_eps=1e-8, verbose=True)
+
+    # (Facoltativo) Controllo finale
+    #eigvals_final = np.linalg.eigvalsh(inverse_cov_mat_hartlap)
+    #print("Minimo autovalore finale:", np.min(eigvals_final))
+    
+    #######################################################################à###############################
+    
+    #Prendi la diagonale dell'inversa corretta
+    diag_inverse_cov_mat_hartlap = np.diag(inverse_cov_mat_hartlap)
+    
+    # Reinverti la matrice corretta
+    cov_mat_hartlap = np.linalg.inv(inverse_cov_mat_hartlap)
+    
+    #Prendi la diagonale della matrice corretta e reinvertita
+    diag_cov_mat_hartlap = np.diag(cov_mat_hartlap)
+    
     ## 1. Calcola errori attraverso cov mat con correzione di hartlap
-    covariance_matrix, diagonal_values, sqrt_diagonal_values, corr_mat = mystery.calculate_covariance_matrix(profiles__, plot_cov)
-
-    #final_cov_error = sqrt_diagonal_values/np.sqrt(num_profiles)
-
-    # Inversione della matrice di covarianza
-    inverse_cov_mat = 1 / covariance_matrix
-
-    inverse_cov_mat_hartlap = inverse_cov_mat * ((num_profiles - nbins - 2) / (num_profiles - 1))
-    cov_mat_hartlap = 1 / inverse_cov_mat_hartlap
-    #cov_mat_hartlap = np.linalg.inv(inverse_cov_mat_hartlap)
-
-    final_cov_error_hartlap = np.sqrt(np.diag(cov_mat_hartlap))/np.sqrt(num_profiles) ###
+    final_cov_error_hartlap = np.sqrt(diag_cov_mat_hartlap)/np.sqrt(num_profiles)
+        
     
     # Inversione della matrice di covarianza
     #try:
@@ -2104,7 +2233,7 @@ def calculate_stat_error(profiles__, nbins, n, plot_cov=False):
     # Calcola l'errore (deviazione standard) dal bootstrap
     bootstrap_error = np.sqrt(bootstrap_variance) ###
     
-    return final_cov_error_hartlap, jackknife_error, bootstrap_error
+    return final_cov_error, jackknife_error, bootstrap_error, final_cov_error_hartlap, inverse_cov_mat_hartlap
 
 def round_up_decimal(arr, n):
     factor = 10**n
@@ -2191,13 +2320,15 @@ def process_shear_1binsize(pre_path, cosmoin, dirs, n, nbins):
             # Calculate statistical errors on mean shear of cosmology
             if i==0:
                 
-                shear_error_cov, shear_error_jack, shear_error_boot = mystery.calculate_stat_error(shear__, nbins, 10000, True)
+                shear_error_cov, shear_error_jack, shear_error_boot, shear_error_cov_H, inverse_cov_H = mystery.calculate_stat_error(shear__, nbins, 10000, True)
             else:
-                shear_error_cov, shear_error_jack, shear_error_boot = mystery.calculate_stat_error(shear__, nbins, 10000, False)
+                shear_error_cov, shear_error_jack, shear_error_boot, shear_error_cov_H, inverse_cov_H = mystery.calculate_stat_error(shear__, nbins, 10000, False)
                 
             shear_error_cov = mystery.round_up_decimal(shear_error_cov, 7)
+            shear_error_cov_H = mystery.round_up_decimal(shear_error_cov_H, 7)
             shear_error_jack = mystery.round_up_decimal(shear_error_jack, 7)
             shear_error_boot = mystery.round_up_decimal(shear_error_boot, 7)
+            
             
             mean_shear = mystery.round_up_decimal(mean_shear, 7) #mean shear
             std_shear = mystery.round_up_decimal(std_shear, 7) #standard deviation shear
@@ -2225,6 +2356,12 @@ def process_shear_1binsize(pre_path, cosmoin, dirs, n, nbins):
                            fmt=' '.join(['%2.7f']*11), 
                            header=header, 
                            comments='')
+                
+            # Save inverse Hartlap-corrected covariance matrix
+            inverse_cov_filename = pre_path + '/output_relative/' + f'{cosmoin[i]}_inverse_cov_H.dat'
+            header = 'Inverse covariance matrix 64x64 corrected with Hartlap method'
+            np.savetxt(inverse_cov_filename, inverse_cov_H, fmt='%2.10f', header=header, comments='')
+
                 
 def process_shear_multibinsize(pre_path, cosmoin, dirs, n, nbins):
     import Finder_functions as mystery
@@ -2289,7 +2426,7 @@ def process_shear_multibinsize(pre_path, cosmoin, dirs, n, nbins):
             weighted_mean_shear_error = 1 / np.sqrt(np.sum(weights, axis=0))
             weighted_GSN_mean_shear_error = 1 / np.sqrt(np.sum(weights_GSN, axis=0))
 
-            bin_shear_error_cov, bin_shear_error_jack, bin_shear_error_boot = mystery.calculate_stat_error(shear_bin, nbins, 1000, plot_cov)
+            bin_shear_error_cov, bin_shear_error_jack, bin_shear_error_boot, bin_shear_errror_H, bin_inverse_cov_H = mystery.calculate_stat_error(shear_bin, nbins, 1000)
 
             bin_shear_error_cov = mystery.round_up_decimal(bin_shear_error_cov, 7)
             bin_shear_error_jack = mystery.round_up_decimal(bin_shear_error_jack, 7)
@@ -2321,6 +2458,12 @@ def process_shear_multibinsize(pre_path, cosmoin, dirs, n, nbins):
                            fmt=' '.join(['%2.7f']*11), 
                            header=header, 
                            comments='')
+                
+            # Save inverse Hartlap-corrected covariance matrix
+            bin_inverse_cov_filename = folderout + f'{cosmoin[i]}_binsize_{ii+1}_inverse_cov_H.dat'
+            header = 'Inverse covariance matrix 64x64 corrected with Hartlap method'
+            np.savetxt(bin_inverse_cov_filename, bin_inverse_cov_H, fmt='%2.10f', header=header, comments='')
+
 
 def plot_mean_shear(pre_path, cosmoin, fradius, line_style, color, binsize=0):
     folderout = pre_path + '/output_relative'
@@ -2589,8 +2732,8 @@ def plot_bins(pre_path, cosmoc, dirs, fradius, line_style, color_dir, fb):
     plt.errorbar(rr_diff, diff_mean_shear, yerr=differr, linestyle=line_style[1], color='k', label=r'$\overline{\gamma_t}(r_p)$'fr' {cosmolabel}', linewidth=2.5)
 
     plt.plot(rr_diff, diff_stack0, color=color_dir[0], label='$R_v$ in ' + '[' + str(bin_edges[0]) + '-' + str(bin_edges[1]) + '] arcmin', linewidth=2.5)
-    plt.plot(rr_diff, diff_stack1, color=color_dir[1], label='$R_v$ in ' + '[' + str(bin_edges[1]) + '-' + str(bin_edges[2]) + '] arcmin', linewidth=2.5)
-    plt.plot(rr_diff, diff_stack2, color=color_dir[2], label='$R_v$ in ' + '[' + str(bin_edges[2]) + '-' + str(bin_edges[3]) + '] arcmin', linewidth=2.5)
+    plt.plot(rr_diff, diff_stack1, color=color_dir[1], label='$R_v$ in ' + ']' + str(bin_edges[1]) + '-' + str(bin_edges[2]) + '] arcmin', linewidth=2.5)
+    plt.plot(rr_diff, diff_stack2, color=color_dir[2], label='$R_v$ in ' + ']' + str(bin_edges[2]) + '-' + str(bin_edges[3]) + '] arcmin', linewidth=2.5)
 
     if fb:
         plt.fill_between(rr_diff, diff_stack0 - differr_stack0, diff_stack0 + differr_stack0, color=color_dir[0], alpha=0.3)
@@ -2612,7 +2755,7 @@ def plot_every_bin(pre_path, cosmoin, dirs, fradius, line_style, color_dir):
     plt.xticks(np.arange(0, (fradius*0.5)+1, step=1), fontsize=35)
     plt.yticks(fontsize=35)
     plt.xlabel('$r_p/R_v$', fontsize=40)
-    plt.ylabel(fr'$\gamma_t(r_p) \, [10^{{-3}}]$', fontsize=40)
+    plt.ylabel(fr'$\gamma_t(r_p) \, [10^{{-3}}]$', fontsize=40, labelpad=15)
     plt.tick_params(axis='both', which='major', direction='in', width=2)
     # Imposta bordi neri più spessi
     ax = plt.gca()  # Ottieni l'asse corrente
@@ -2631,7 +2774,10 @@ def plot_every_bin(pre_path, cosmoin, dirs, fradius, line_style, color_dir):
     for i in range(len(dirs)):
         min_radius = bin_edges[i]
         max_radius = bin_edges[i+1]
-        label = '$R_v$ in ' + '[' + str(min_radius) + '-' + str(max_radius) + '] arcmin'
+        if i==0:
+            label = '$R_v$ in ' + '[' + str(min_radius) + '-' + str(max_radius) + '] arcmin'
+        else:
+            label = '$R_v$ in ' + ']' + str(min_radius) + '-' + str(max_radius) + '] arcmin'
         line = plt.Line2D([], [], color=color_dir[i], label=label)
         legend_elements.append(line)
 
@@ -2654,7 +2800,7 @@ def plot_every_bin(pre_path, cosmoin, dirs, fradius, line_style, color_dir):
         legend_elements.append(line)
     
     plt.legend(handles=legend_elements, fontsize=40)
-    plt.savefig("/home/leonardo/Desktop/pdfs/all_bins_cosmo.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig("/home/leonardo/Desktop/pdfs2/all_bins_cosmo.pdf", format='pdf', bbox_inches='tight')
     
                 
 def extract_cobaya(chain_root, cobaya_dir, names, n_cores, n_cols):
@@ -3009,9 +3155,9 @@ def cornerplot_cosmologies(cosmoin, cobaya_path, n_cores, color, binsize=0, sigm
     
     for i in reversed(range(len(cosmoin))):
         if binsize==0:
-            cobaya_dir = cobaya_path + f'{cosmoin[i]}/chains/'
+            cobaya_dir = cobaya_path + f'{cosmoin[i]}/chains_H_diagnostic/'
         else:
-            cobaya_dir = cobaya_path + f'{cosmoin[i]}/chains_binsize_{binsize}/'
+            cobaya_dir = cobaya_path + f'{cosmoin[i]}/chains_bin_{binsize}_H/'
             
         MCMC = mystery.extract_cobaya(cobaya_chains_name, cobaya_dir, names, n_cores, n_cols)
         #print (np.cov(MCMC.T))
@@ -3028,7 +3174,7 @@ def cornerplot_cosmologies(cosmoin, cobaya_path, n_cores, color, binsize=0, sigm
             max_radius = bin_edges[binsize]
             labelbin = '$R_v$ in ' + '[' + str(min_radius) + '-' + str(max_radius) + '] arcmin'
 
-            all_samples.append(mystery.prepare_sample(MCMC, f'{cosmolabels[i]} 'f'{labelbin}', names, names))
+            all_samples.append(mystery.prepare_sample(MCMC, f'{cosmolabels[i]}', names, names))# 'f'{labelbin}
             
     # Set general font sizes
     plt.rcParams['font.size'] = 14  # General font size
@@ -3050,65 +3196,65 @@ def cornerplot_cosmologies(cosmoin, cobaya_path, n_cores, color, binsize=0, sigm
     
     fig = plt.gcf()
     
-    if binsize == 1:
+    #if binsize == 1:
         # Parametro 'a'
-        m.subplots[0, 0].set_xlim([0.0072, 0.0085])  
-        m.subplots[1, 0].set_ylim([0.54, 0.5625])      
+        #m.subplots[0, 0].set_xlim([0.0072, 0.0085])  
+        #m.subplots[1, 0].set_ylim([0.54, 0.5625])      
 
         # Parametro 'b'
-        m.subplots[1, 1].set_xlim([0.54, 0.5625])    
-        m.subplots[2, 1].set_ylim([2.35, 2.615])      
+        #m.subplots[1, 1].set_xlim([0.54, 0.5625])    
+        #m.subplots[2, 1].set_ylim([2.35, 2.615])      
 
         # Parametro 'c'
-        m.subplots[2, 2].set_xlim([2.35, 2.615])      
-        m.subplots[3, 2].set_ylim([0.33, 0.41])     
+        #m.subplots[2, 2].set_xlim([2.35, 2.615])      
+        #m.subplots[3, 2].set_ylim([0.33, 0.41])     
 
         # Parametro 'd'
-        m.subplots[3, 3].set_xlim([0.33, 0.41])    
-        m.subplots[4, 3].set_ylim([-0.1, 0.2])     
+        #m.subplots[3, 3].set_xlim([0.33, 0.41])    
+        #m.subplots[4, 3].set_ylim([-0.1, 0.2])     
 
         # Parametro 'e'
-        m.subplots[4, 4].set_xlim([2.025, 2.25])
+        #m.subplots[4, 4].set_xlim([2.025, 2.25])
 
-    elif binsize == 2:
+    #elif binsize == 2:
         # Parametro 'a'
-        m.subplots[0, 0].set_xlim([0.015, 0.02125])  
-        m.subplots[1, 0].set_ylim([0.495, 0.5225])      
+        #m.subplots[0, 0].set_xlim([0.015, 0.02125])  
+        #m.subplots[1, 0].set_ylim([0.495, 0.5225])      
 
         # Parametro 'b'
-        m.subplots[1, 1].set_xlim([0.495, 0.5225])    
-        m.subplots[2, 1].set_ylim([2.505, 2.72])      
+        #m.subplots[1, 1].set_xlim([0.495, 0.5225])    
+        #m.subplots[2, 1].set_ylim([2.505, 2.72])      
 
         # Parametro 'c'
-        m.subplots[2, 2].set_xlim([2.505, 2.72])      
-        m.subplots[3, 2].set_ylim([-0.265, -0.075])     
+        #m.subplots[2, 2].set_xlim([2.505, 2.72])      
+        #m.subplots[3, 2].set_ylim([-0.265, -0.075])     
 
         # Parametro 'd'
-        m.subplots[3, 3].set_xlim([-0.265, -0.075])    
-        m.subplots[4, 3].set_ylim([-0.1, 0.2])     
+        #m.subplots[3, 3].set_xlim([-0.265, -0.075])    
+        #m.subplots[4, 3].set_ylim([-0.1, 0.2])     
 
         # Parametro 'e'
-        m.subplots[4, 4].set_xlim([1.89, 2.175])
+        #m.subplots[4, 4].set_xlim([1.89, 2.175])
 
-    elif binsize == 3:
+    #elif binsize == 3:
         # Parametro 'a'
-        m.subplots[0, 0].set_xlim([0.034, 0.0505])  
-        m.subplots[1, 0].set_ylim([0.19, 0.26])      
+        #m.subplots[0, 0].set_xlim([0.034, 0.0505])  
+        #m.subplots[1, 0].set_ylim([0.19, 0.26])      
 
         # Parametro 'b'
-        m.subplots[1, 1].set_xlim([0.19, 0.26])    
-        m.subplots[2, 1].set_ylim([2.265, 2.41])      
+        #m.subplots[1, 1].set_xlim([0.19, 0.26])    
+        #m.subplots[2, 1].set_ylim([2.265, 2.41])      
 
         # Parametro 'c'
-        m.subplots[2, 2].set_xlim([2.265, 2.41])      
-        m.subplots[3, 2].set_ylim([-0.83, -0.65])     
+        #m.subplots[2, 2].set_xlim([2.265, 2.41])      
+        #m.subplots[3, 2].set_ylim([-0.83, -0.65])     
 
         # Parametro 'd'
-        m.subplots[3, 3].set_xlim([-0.83, -0.65])    
-        m.subplots[4, 3].set_ylim([-0.1, 0.2])     
+        #m.subplots[3, 3].set_xlim([-0.83, -0.65])    
+        #m.subplots[4, 3].set_ylim([-0.1, 0.2])     
 
         # Parametro 'e'
-        m.subplots[4, 4].set_xlim([1.175, 1.625])
+        #m.subplots[4, 4].set_xlim([1.175, 1.625])
 
 
     # Adjust the font size for the legend and labels in the corner plot
@@ -3131,10 +3277,14 @@ def cornerplot_cosmologies(cosmoin, cobaya_path, n_cores, color, binsize=0, sigm
     leg.set_bbox_to_anchor((0.75, 0.9))  # Adjust the values as needed
     
     if binsize==0:
-        plt.savefig('/home/leonardo/Desktop/pdfs/contours.pdf', format='pdf', bbox_inches='tight')
-    else:
+        plt.savefig('/home/leonardo/Desktop/pdfs2/contours.pdf', format='pdf', bbox_inches='tight')
         #plt.savefig(f'contours_cosmologies_binsize_{binsize}.pdf', format='pdf')
-        plt.savefig('/home/leonardo/Desktop/pdfs/medi.pdf', format='pdf', bbox_inches='tight')
+    elif binsize==1:
+        plt.savefig('/home/leonardo/Desktop/pdfs2/piccoli.pdf', format='pdf', bbox_inches='tight')
+    elif binsize==2:   
+        plt.savefig('/home/leonardo/Desktop/pdfs2/medi.pdf', format='pdf', bbox_inches='tight')
+    elif binsize==3:
+        plt.savefig('/home/leonardo/Desktop/pdfs2/grandi.pdf', format='pdf', bbox_inches='tight')
         
 def cornerplot_bins(cosmoc, cobaya_path, dirs, n_cores, color_dir, sigmas=None):
     import Finder_functions as mystery
@@ -3166,7 +3316,7 @@ def cornerplot_bins(cosmoc, cobaya_path, dirs, n_cores, color_dir, sigmas=None):
 
     for i in range(len(dirs)):
     
-        cobaya_dir = cobaya_path + f'{cosmoc}/chains_binsize_{i+1}/'
+        cobaya_dir = cobaya_path + f'{cosmoc}/chains_bin_{i+1}_H/'
         MCMC = mystery.extract_cobaya(cobaya_chains_name, cobaya_dir, names, n_cores, n_cols)
         #print (np.cov(MCMC.T))
         current_best_fit = np.median(MCMC, axis=0)
@@ -3336,5 +3486,7 @@ def cornerplot_bins(cosmoc, cobaya_path, dirs, n_cores, color_dir, sigmas=None):
 
     # Move the legend slightly to the right
     leg.set_bbox_to_anchor((0.775, 0.9))  # Adjust the values as needed
+
+    plt.savefig('/home/leonardo/Desktop/pdfs2/total_contours_3bins.pdf', format='pdf', bbox_inches='tight')
 
     plt.savefig('/home/leonardo/Desktop/pdfs/total_contours_3bins.pdf', format='pdf', bbox_inches='tight')
