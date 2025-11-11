@@ -107,26 +107,32 @@ i_fil = "01"            # map identifier
 If you use this void finder or any of its components in your work, please cite:
 
 **Maggiore et al. (2025)**,  
-*Weak-lensing tunnel voids in simulated light-cones: a new pipeline to investigate modified gravity and massive neutrinos signatures*,  
+*Weak-lensing tunnel voids in simulated light-cones: A new pipeline to investigate modified gravity and massive neutrinos signatures*,  
+
 arXiv:2504.02041  
 [https://arxiv.org/abs/2504.02041](https://arxiv.org/abs/2504.02041)
 
+Journal reference:	A&A 701, A55 (2025)
+Related DOI: https://doi.org/10.1051/0004-6361/202554968
+
+
 ### BibTeX:
 
-@ARTICLE{2025arXiv250402041M,
+@ARTICLE{2025A&A...701A..55M,
        author = {{Maggiore}, Leonardo and {Contarini}, Sofia and {Giocoli}, Carlo and {Moscardini}, Lauro},
-        title = "{Weak-lensing tunnel voids in simulated light-cones: a new pipeline to investigate modified gravity and massive neutrinos signatures}",
-      journal = {arXiv e-prints},
-     keywords = {Cosmology and Nongalactic Astrophysics},
+        title = "{Weak-lensing tunnel voids in simulated light cones: A new pipeline to investigate modified gravity and massive neutrinos signatures}",
+      journal = {\aap},
+     keywords = {gravitational lensing: weak, cosmology: theory, dark energy, large-scale structure of Universe, Cosmology and Nongalactic Astrophysics},
          year = 2025,
-        month = apr,
-          eid = {arXiv:2504.02041},
-        pages = {arXiv:2504.02041},
-          doi = {10.48550/arXiv.2504.02041},
+        month = sep,
+       volume = {701},
+          eid = {A55},
+        pages = {A55},
+          doi = {10.1051/0004-6361/202554968},
 archivePrefix = {arXiv},
        eprint = {2504.02041},
  primaryClass = {astro-ph.CO},
-       adsurl = {https://ui.adsabs.harvard.edu/abs/2025arXiv250402041M},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2025A&A...701A..55M},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
 
