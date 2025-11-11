@@ -96,8 +96,7 @@ Calculates and compares statistical errors on the stacked tangential shear profi
 
 First, make sure you have installed the required Python packages:
 
-`bash
-pip install -r requirements.txt`
+`pip install -r requirements.txt`
 
 Then, edit and run the notebook `Tunnel_void_finder.ipynb`:
 
