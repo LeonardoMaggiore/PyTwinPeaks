@@ -1,0 +1,19 @@
+# === Core scientific libraries ===
+numpy
+scipy
+matplotlib
+scikit-image
+astropy
+
+# === Image and data IO ===
+imageio
+opencv-python
+python-magic
+
+# === Cosmology & statistics ===
+camb
+getdist
+
+# === Interactive / Notebook support ===
+ipython
+jupyter
