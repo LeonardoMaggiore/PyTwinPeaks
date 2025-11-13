@@ -106,6 +106,37 @@ i_fil = "01"            # map identifier
 
 ---
 
+## Batch Runner Notebook: All_maps.ipynb
+
+The notebook All_maps.ipynb provides an automated pipeline to process multiple weak lensing light-cone maps in batch mode, each stored in separate subfolders (e.g., 00, 01, ..., 99) under a given cosmology directory (e.g., data/LCDM/). This notebook is particularly useful when statistical studies on the void population are required, such as for computing ensemble-averaged void size functions or shear profiles.
+
+It is designed to execute the Tunnel_void_finder.ipynb notebook repeatedly, once for each available light-cone map, without user intervention. This batch execution is useful for building statistical samples of voids across many realizations.
+
+### Key Features
+
+-Relative Paths: The notebook uses portable, relative paths so it can be executed from within the notebooks/ directory and still find input and output folders.
+-Cosmology Selection: You can select a cosmological model (e.g., LCDM, fR4, fR5, fR6) by setting the c_run index.
+-Loop Over Light-cones: Automatically loops over a specified number of subfolders (e.g., 00 to 99), each assumed to contain a .fits convergence map.
+-Notebook Execution: Dynamically modifies the second cell of Tunnel_void_finder.ipynb to inject the current light-cone (l_c) and runs the notebook using nbconvert’s ExecutePreprocessor.
+-Isolation Between Runs: Each light-cone is processed in its own directory, preventing cross-contamination of outputs.
+-Error Handling: Gracefully skips subfolders that are missing or if execution fails.
+
+ ### Usage
+
+1. Make sure your input files are organized under data/{cosmoin}/{l_c}/, (e.g. data/LCDM/00/2_kappaBApp.fits)
+
+2. Run All_maps.ipynb from the notebooks/ directory.
+
+3. The script will run Tunnel_void_finder.ipynb for each subfolder, saving the results in outputs/{cosmo}/{l_c}/.
+
+### Example Setup
+
+cosmoin = ["LCDM", "fR4", "fR5", "fR6", "LCDM_0.15"]
+c_run = 0  # selects "LCDM"
+n = 100    # process 100 maps from 00 to 99
+
+---
+
 ## Notes
 
 If you use this void finder or any of its components in your work, please cite:
