@@ -1,0 +1,24 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Output temporanei
+outputs/
+*.pdf
+*.png
+
+# Ambiente virtuale
+.venv/
+env/
+venv/
+
+# File di sistema
+.DS_Store
+
+# Config locali
+*.log
+*.swp
