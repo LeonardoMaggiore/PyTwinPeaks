@@ -16,7 +16,7 @@ import skimage.color
 import skimage.io
 from skimage import data, filters, measure, morphology
 from skimage import segmentation
-from skimage.measure import find_contours, approximate_polygon,subdivide_polygon
+from skimage.measure import find_contours, approximate_polygon, subdivide_polygon
 import numpy.distutils.ccompiler
 from astropy.convolution import convolve, convolve_fft
 import scipy.fftpack as fftengine
