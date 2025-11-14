@@ -29,8 +29,6 @@ import magic
 import shutil
 from astropy.units import deg
 import cv2
-from getdist import plots, MCSamples, loadMCSamples, types
-from getdist.types import ResultTable
 from scipy.stats import norm
 import IPython
 
