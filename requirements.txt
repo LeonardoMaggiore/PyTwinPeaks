@@ -1,18 +1,27 @@
 # === Core scientific libraries ===
-numpy
-scipy
-matplotlib
-scikit-image
-astropy
+numpy==1.26.4               # Latest stable version in the 1.x series (compatible with many packages)
+scipy>=1.10.0               # Scientific computing, compatible with NumPy 1.x
+matplotlib>=3.6.0           # Plotting and visualization
+scikit-image>=0.21.0        # Image processing
+astropy>=5.0.0              # Astronomy utilities, FITS support
 
-# === Image and data IO ===
-imageio
-opencv-python
-python-magic
+# === Image and data I/O ===
+imageio>=2.30.0             # Image reading and writing
+opencv-python>=4.8.0,<5.0.0 # OpenCV, compatible with numpy<2
+python-magic>=0.4.27        # File type detection
 
 # === Cosmology & statistics ===
-camb
-getdist
+camb>=5.2.0                 # Cosmological Boltzmann code interface
+
+# === Interactive / Notebook support ===
+ipython>=7.31.1,<9.0.0      # Interactive Python shell (version limit avoids compatibility issues)
+jupyter>=1.0.0              # Jupyter Notebook interface
+
+# === Optional but useful ===
+seaborn>=0.13.0             # Statistical data visualization
+pandas>=2.1.0,<3.0.0        # Data handling, works well with numpy 1.x
+shapely>=2.0.0,<3.0.0       # Geometry handling, compatible with numpy 1.x
+numba>=0.57.0,<0.58.0       # Just-In-Time compilation, compatible with numpy<1.25
 
 # === Interactive / Notebook support ===
 ipython
