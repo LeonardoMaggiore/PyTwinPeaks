@@ -108,11 +108,11 @@ i_fil = "01"            # map identifier
 
 ## Batch Runner Notebook: All_maps.ipynb
 
-The notebook All_maps.ipynb provides an automated pipeline to process multiple weak lensing light-cone maps in batch mode, each stored in separate subfolders (e.g., 00, 01, ..., 255) under a given cosmology directory (e.g., data/LCDM/). This notebook is particularly useful when statistical studies on the void population are required, such as for computing ensemble-averaged void size functions or shear profiles.
+The notebook All_maps.ipynb provides an automated pipeline to process multiple weak lensing light-cone maps in batch mode, each stored in separate subfolders (e.g., 00, 01, ..., 255) under a given cosmology directory (e.g., data/LCDM/).
 
 It is designed to execute the Tunnel_void_finder.ipynb notebook repeatedly, once for each available light-cone map, without user intervention. This batch execution is useful for building statistical samples of voids across many realizations.
 
-### Key Features
+Key Features:
 
 -Relative Paths: The notebook uses portable, relative paths so it can be executed from within the notebooks/ directory and still find input and output folders.
 -Cosmology Selection: You can select a cosmological model (e.g., LCDM, fR4, fR5, fR6) by setting the c_run index.
