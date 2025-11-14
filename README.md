@@ -112,7 +112,7 @@ The notebook All_maps.ipynb provides an automated pipeline to process multiple w
 
 It is designed to execute the Tunnel_void_finder.ipynb notebook repeatedly, once for each available light-cone map, without user intervention. This batch execution is useful for building statistical samples of voids across many realizations.
 
-Key Features:
+### Key Features:
 
 -Relative Paths: The notebook uses portable, relative paths so it can be executed from within the notebooks/ directory and still find input and output folders.
 -Cosmology Selection: You can select a cosmological model (e.g., LCDM, fR4, fR5, fR6) by setting the c_run index.
